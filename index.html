@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html>
+<head> 
+	<title>Edisto River Basin</title>
+	
+	<meta charset="utf-8" />
+	<link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.3/leaflet.css" /> <!-- we will us e this as the styling script for our webmap-->
+    <link href='css/leaflet-panel-layers.min.css' rel='stylesheet'/>
+    <link rel="stylesheet" href="css/own_style.css"/>
+    <link rel="stylesheet" href="css/leaflet.label.css"/>
+    <link href='https://api.mapbox.com/mapbox.js/plugins/leaflet-locatecontrol/v0.43.0/L.Control.Locate.mapbox.css' rel='stylesheet' />
+    <!--[if lt IE 9]>
+      <link href='https://api.mapbox.com/mapbox.js/plugins/leaflet-locatecontrol/v0.43.0/L.Control.Locate.ie.css' rel='stylesheet' />
+    <![endif]-->
+    <link href='https://api.mapbox.com/mapbox.js/plugins/leaflet-locatecontrol/v0.43.0/css/font-awesome.min.css' rel='stylesheet' />
+    
+    <script type="text/javascript" src='https://api.tiles.mapbox.com/mapbox.js/v2.1.6/mapbox.js'></script>
+    <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.3/leaflet.js"></script>
+    <script type="text/javascript" src='https://api.tiles.mapbox.com/mapbox.js/plugins/leaflet-omnivore/v0.2.0/leaflet-omnivore.min.js'></script>
+    <script type="text/javascript" src="js/Autolinker.min.js"></script>
+    <script type="text/javascript" src='js/leaflet-panel-layers.min.js'></script>
+    <script type="text/javascript" src="js/leaflet.label.js"></script>
+    <script type="text/javascript" src='https://api.mapbox.com/mapbox.js/plugins/leaflet-locatecontrol/v0.43.0/L.Control.Locate.min.js'></script>
+	<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    
+    <style>
+    .leaflet-control-locate a {padding:0px}
+    </style>
+    
+</head>
+<body>
+    
+    <div id="map"></div>
+    <div id="mapTitle"><img src="pictures/logo-ds.png" alt="Friends of the Edisto River Logo"/></div>
+    <div id="legendButton"><button onclick="panelOpen()">Layers</button></div>
+    <div id="intro" class="visible"><h1>Edisto River Basin</h1></div>
+    
+    <script src='./data/exp_basinMask.js' ></script>
+    <script src='./data/exp_basin3.js' ></script>
+    <script src='./data/json_edistoMM.js' ></script>		
+    
+	<script>
+        
+    var southWest = L.latLng(31.7, -82.5),
+        northEast = L.latLng(35.5, -79),
+        bounds = L.latLngBounds(southWest, northEast);
+        
+    var map = L.map('map', {
+        minZoom: 8,
+        maxBounds: bounds
+    }).setView([33.25, -80.5], 9);        
+        
+    var basemap = L.tileLayer('http://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+	attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, TomTom, Intermap, iPC, USGS, FAO, NPS, NRCAN, GeoBase, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), and the GIS User Community'
+}).addTo(map);
+    
+    var imagery = L.tileLayer('https://{s}.tiles.mapbox.com/v4/tsliker.8a9c5505/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoidHNsaWtlciIsImEiOiJkNDVhYThlNWM2MGI3YTE4YjM5YTk4ZTIyOTA1MmZmNSJ9.5QkUHOrKWloNi8GnW3FrMA', {
+    attribution: '<a href="http://www.mapbox.com/about/maps/" target="_blank">Terms &amp; Feedback</a>'
+});  
+    
+//basin and mask basin data
+    var basinStyle = {
+        "color": "#009999", 
+        "weight": 3,
+        "opacity": 1,
+        "fillOpacity": 0
+    };
+        
+    var maskStyle = {
+        "weight":0,
+        "fillColor": "gray",
+        "fillOpacity": 0.4
+    };
+    
+    var MM10style = {
+        radius:4,
+        fillColor:"orange",
+        weight:1,
+        weightOpacity:1,
+        color:"#222",
+        fillOpacity:1
+    }   
+    var MMstyle = {
+        radius:2,
+        fillColor:"orange",
+        fillOpacity:1,
+        weight:0
+    }   
+    
+    var mask = L.geoJson(exp_basinMask, {style: maskStyle}).addTo(map);    
+    var basin = L.geoJson(exp_basin3, {style: basinStyle}).addTo(map);        
+        
+//mile marker points    
+    var mileMarkers10 = L.geoJson(json_edistoMM, {
+        filter:function(feature,layer) {
+            if(feature.properties.mile % 10 == 0){
+                return true
+            }
+        },
+        pointToLayer: function(feature,latlng){
+            return L.circleMarker(latlng, MM10style)
+            .bindLabel(String(feature.properties.mile), {
+                offset:[5,-15],
+                noHide:'true',
+                className:'mileLabels'
+            })
+         }
+    });
+        
+    var mileMarkers = L.geoJson(json_edistoMM, {
+        filter:function(feature,layer) {
+            if(feature.properties.mile % 10 != 0){
+                return true
+            }
+        },
+        pointToLayer: function(feature,latlng){
+            return L.circleMarker(latlng, MMstyle)
+            .bindLabel(String(feature.properties.mile), {
+                offset:[5,-15],
+                noHide:'true',
+                className:'mileLabels'
+            })
+        }
+    });  
+
+//function to add and remove mile markers on zoom levels
+    var mileMarkerGroup = L.layerGroup([mileMarkers10])    
+        
+    function mileMarkerZoom() {
+        map.on('zoomend', function () {
+            if (map.getZoom() >=14) {
+                mileMarkerGroup.addLayer(mileMarkers);
+            } else if (map.getZoom() <14) {
+                mileMarkerGroup.removeLayer(mileMarkers);   
+            }
+        });
+        map.on('zoomend', function () {
+            if (map.getZoom() >= 11) {
+                map.addLayer(mileMarkerGroup);
+            } else if (map.getZoom() < 11) {
+                map.removeLayer(mileMarkerGroup);
+            }
+        });
+    }  
+        
+//accessing the data from csv at it's source        
+    //var data = "./data/edisto.csv"    
+    var data = "https://raw.githubusercontent.com/freewheelCarto/edistoBasin/gh-pages/data/edisto.csv"
+    
+    function getImage(imageNameProperty) {
+        if (imageNameProperty.length > 0) {
+            return '<br><img class="photos" src="./pictures/'+imageNameProperty+'" alt="point of interest image"/>';
+        } else {return ""}
+    }
+    
+//function to get icon without having to repeat the html stuff    
+    function iconByName(name) {
+        return '<i class="icon icon-'+name+'"></i>';
+    }    
+        
+    function pop_edisto(feature, layer) {
+        var coords = layer.getLatLng()
+        var popupContent = '<table><tr><th scope="row">Name</th><td>' + Autolinker.link(String(feature.properties['Name'])) + '</td></tr><tr><th scope="row">Category</th><td>' + Autolinker.link(String(feature.properties['Category'])) + '</td></tr><tr><th scope="row">Section</th><td>' + Autolinker.link(String(feature.properties['Section'])) + '</td></tr><tr><th scope="row">River Mile</th><td>' + Autolinker.link(String(feature.properties['River Mile'])) + '</td></tr><tr><th scope="row">Description  </th><td>' + Autolinker.link(String(feature.properties['Description'])) + '</td></tr><tr><th scope="row">Get Directions  </th><td><a href="https://maps.google.com?daddr=' + Autolinker.link(String(coords.lat + ',' + coords.lng)) + '" target="_blank">Google Maps</a></td></tr></table>'+getImage(Autolinker.link(String(feature.properties['photo'])));
+            layer.bindPopup(popupContent);
+        }    
+        
+//function that creates marker icons     
+    function featureToMarker(feature, latlng) {
+        return L.marker(latlng, {
+            icon: L.divIcon({
+                className: 'marker-'+feature.properties.type,
+			    html: iconByName(feature.properties.type),
+                iconSize: [30, 30],
+                popupAnchor: [0, -15]
+            })
+        });
+    }    
+
+//setup data and add icons to markers        
+    var Interest = L.geoJson(null, {
+        filter: function(feature, layer) {
+            if (feature.properties.type === "Point-of-Interest") {
+                return true
+            }
+        },
+        pointToLayer: featureToMarker,
+        onEachFeature: pop_edisto
+    });       
+        
+    var Camping = L.geoJson(null, {
+    	filter: function(feature, layer) {
+            if (feature.properties.type === "Camping") {
+                return true
+            }
+        },
+        pointToLayer: featureToMarker,
+        onEachFeature: pop_edisto
+    });
+        
+    var PublicLanding = L.geoJson(null, {
+    	filter: function(feature, layer) {
+            if (feature.properties.type === "Public-Landing") {
+                return true
+            }
+        },
+        pointToLayer: featureToMarker,
+        onEachFeature: pop_edisto
+    });
+        
+    var PrivateLanding = L.geoJson(null, {
+    	filter: function(feature, layer) {
+            if (feature.properties.type === "Private-Landing") {
+                return true
+            }
+        },
+        pointToLayer: featureToMarker,
+        onEachFeature: pop_edisto
+    });
+        
+    var statePark = L.geoJson(null, {
+    	filter: function(feature, layer) {
+            if (feature.properties.type === "State-Park") {
+                return true
+            }
+        },
+        pointToLayer: featureToMarker,
+        onEachFeature: pop_edisto
+    });
+        
+    var Hospital = L.geoJson(null, {
+    	filter: function(feature, layer) {
+            if (feature.properties.type === "Hospital") {
+                return true
+            }
+        },
+        pointToLayer: featureToMarker,
+        onEachFeature: pop_edisto
+    });
+    var Outfitter = L.geoJson(null, {
+    	filter: function(feature, layer) {
+            if (feature.properties.type === "Outfitter") {
+                return true
+            }
+        },
+        pointToLayer: featureToMarker,
+        onEachFeature: pop_edisto
+    }); 
+    var Sponsors = L.geoJson(null, {
+    	filter: function(feature, layer) {
+            if (feature.properties.type === "Sponsors") {
+                return true
+            }
+        },
+        pointToLayer: featureToMarker,
+        onEachFeature: pop_edisto
+    });
+        
+//add base layers to panel        
+    var baselayers = [
+        {
+            name:"Topo Basemap",
+            layer: basemap
+        },
+        {
+            name:"Imagery",
+            layer: imagery
+        }
+    ]
+
+    
+    var parserOptions = {
+        latfield:"lat",
+        lonfield:"long" 
+    }
+    
+//adds points of interest to the panel, and creates the data based on passing the omnivore function in to the 'layer' option.     
+    var pois = [
+
+                {
+                    name: "Public Landing",
+                    icon: iconByName('Public-Landing'),
+                    layer: omnivore.csv(data, parserOptions, PublicLanding)
+                },
+                {
+                    name: "Private Landing",
+                    icon: iconByName('Private-Landing'),
+                    layer: omnivore.csv(data, parserOptions, PrivateLanding)
+                },
+                {
+                    name: "Camping",
+                    icon: iconByName('Camping'),
+                    layer: omnivore.csv(data, parserOptions, Camping)
+                },
+                {
+                    name: "Points of Interest",
+                    icon: iconByName('Point-of-Interest'),
+                    layer: omnivore.csv(data, parserOptions, Interest)
+                },
+                {
+                    name: "State Park",
+                    icon: iconByName('State-Park'),
+                    layer: omnivore.csv(data, parserOptions, statePark)
+                },
+                {
+                    name: "Hospital",
+                    icon: iconByName('Hospital'),
+                    layer: omnivore.csv(data, parserOptions, Hospital)
+                },
+                {
+                    name: "Bait/Tackle/Outfitter",
+                    icon: iconByName('Outfitter'),
+                    layer: omnivore.csv(data, parserOptions, Outfitter)
+                },
+                {
+                    name: "Sponsors",
+                    icon: iconByName('Sponsors'),
+                    layer: omnivore.csv(data, parserOptions, Sponsors)
+                },
+                {
+                    name: "Mile Markers",
+                    icon: iconByName('mm'),
+                    layer: mileMarkerGroup
+                }
+            ];
+
+    var panelControl = new L.Control.PanelLayers(baselayers,pois, {collapsed: false});
+    map.addControl(panelControl)
+        
+    L.control.locate({
+        position:'topleft',
+        follow:true,
+        metric: false,
+        strings: {
+            title: "Show me where I am",  // title of the locate control
+            metersUnit: "meters", // string for metric units
+            feetUnit: "feet", // string for imperial units
+            popup: "You are within {distance} {unit} from this point",  // text to appear if user clicks on circle
+            outsideMapBoundsMsg: "You seem located outside the boundaries of the map" // default message for onLocationOutsideMapBounds
+        }
+    }).addTo(map);
+    
+    function introFade(){
+        map.on('move', function() {
+            document.getElementById("intro").className = "hidden";
+        });
+    }
+        
+    introFade();
+    mileMarkerZoom();
+        
+	</script>
+    
+    <script>
+    var panel = document.getElementsByClassName("leaflet-panel-layers");
+    function panelOpen() {
+        if (panel[0].style.display == "block") {
+            panel[0].style.display = "none";
+        }else{
+            panel[0].style.display = "block";
+        }
+    }
+        
+    </script>
+    
+</body>
+</html>
